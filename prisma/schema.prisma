@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Kullanıcılar - Müdür whitelist'e ekler
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  fullName  String
+  role      Role     @default(LECTURER)
+  isActive  Boolean  @default(true)
+  image     String?
+  courses   Course[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Dersler
+model Course {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  name             String
+  lecturerId       String
+  lecturer         User              @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  reports          Report[]
+  learningOutcomes LearningOutcome[]
+  exams            Exam[]
+  createdAt        DateTime          @default(now())
+}
+
+// Ders Öğrenme Çıktıları (DÖÇ) - YÖKAK
+model LearningOutcome {
+  id             String     @id @default(cuid())
+  courseId       String
+  course         Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  code           String     // DÖÇ1, DÖÇ2, vs.
+  description    String     // Öğrenme çıktısı açıklaması
+  weight         Float      @default(1.0) // Ağırlık
+  achievementPct Float?     // Hesaplanan başarı yüzdesi
+  questions      Question[]
+  createdAt      DateTime   @default(now())
+}
+
+// Sınavlar (Vize, Final, Bütünleme)
+model Exam {
+  id           String     @id @default(cuid())
+  courseId     String
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  type         String     // Vize, Final, Bütünleme
+  academicYear String     // 2024-2025
+  semester     String     // Güz, Bahar
+  totalPoints  Float      @default(100)
+  questions    Question[]
+  createdAt    DateTime   @default(now())
+}
+
+// Sınav Soruları
+model Question {
+  id                 String          @id @default(cuid())
+  examId             String
+  exam               Exam            @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionNo         Int             // Soru numarası
+  points             Float           // Soru puanı
+  avgStudentPoints   Float?          // Öğrenci ortalaması
+  learningOutcomeId  String?
+  learningOutcome    LearningOutcome? @relation(fields: [learningOutcomeId], references: [id])
+  createdAt          DateTime        @default(now())
+}
+
+// Sınav Raporları
+model Report {
+  id                String       @id @default(cuid())
+  courseId          String
+  course            Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term              String       // Vize / Final / Bütünleme
+  academicYear      String?      // 2024-2025
+  semester          String?      // Güz / Bahar
+  minScore          Float
+  maxScore          Float
+  avgScore          Float
+  medianScore       Float?
+  stdDev            Float?
+  studentCnt        Int
+  passCount         Int?
+  failCount         Int?
+  passRate          Float?
+  gradeDistribution String?      // JSON olarak harf notu dağılımı
+  status            ReportStatus @default(PENDING)
+  fileName          String?
+  uploadedAt        DateTime     @default(now())
+  reviewedAt        DateTime?
+  reviewerId        String?
+  reviewNote        String?      // Red sebebi veya onay notu
+}
+
+// Kullanıcı Rolleri
+enum Role {
+  ADMIN    // Müdür
+  MANAGER  // Müdür Yardımcısı
+  LECTURER // Öğretim Görevlisi
+}
+
+// Rapor Durumları
+enum ReportStatus {
+  PENDING  // Onay Bekliyor
+  APPROVED // Onaylandı
+  REJECTED // Reddedildi
+}
