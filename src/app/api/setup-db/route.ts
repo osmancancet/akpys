@@ -51,14 +51,37 @@ export async function GET() {
           "updatedAt" = NOW();
     `);
 
+        // 3. Test Kullanıcısı Oluşturma Denemesi (Hata ayıklama için)
+        let testUserResult = "Test yapılmadı";
+        try {
+            const testEmail = "test_diag_" + Date.now() + "@test.com";
+            console.log("Test kullanıcısı oluşturuluyor:", testEmail);
+
+            const testUser = await prisma.user.create({
+                data: {
+                    email: testEmail,
+                    fullName: "Test Diagnostic User",
+                    role: "LECTURER" as any, // "any" cast to bypass local TS check if needed
+                    isActive: false
+                }
+            });
+            testUserResult = "Başarılı: " + testUser.id;
+            // Temizlik
+            await prisma.user.delete({ where: { id: testUser.id } });
+            testUserResult += " (Silindi)";
+        } catch (e: any) {
+            console.error("Test user creation failed:", e);
+            testUserResult = "HATA: " + e.message;
+        }
+
         const finalUser = await prisma.user.findUnique({ where: { email: adminEmail } });
-        console.log("İşlem sonrası kullanıcı:", finalUser);
 
         return NextResponse.json({
             success: true,
-            message: "Veritabanı güncellendi. Kullanıcı detayı aşağıdadır.",
-            user: finalUser,
-            enums: enumDebug
+            message: "Veritabanı güncellendi.",
+            enums: enumDebug,
+            adminUser: finalUser,
+            diagnosticTest: testUserResult
         });
 
     } catch (error: any) {
