@@ -102,10 +102,12 @@ model Report {
 }
 
 // Kullanıcı Rolleri
-enum Role {
-  ADMIN    // Müdür
-  MANAGER  // Müdür Yardımcısı
-  LECTURER // Öğretim Görevlisi
+enum UserRole {
+  ADMIN              // Müdür
+  MANAGER            // Müdür Yardımcısı
+  HEAD_OF_DEPARTMENT // Bölüm Başkanı
+  SECRETARY          // Yüksekokul Sekreteri
+  LECTURER           // Öğretim Görevlisi
 }
 
 // Rapor Durumları

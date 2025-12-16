@@ -3,13 +3,13 @@ import { prisma } from "../src/lib/prisma";
 async function main() {
     console.log("🌱 Seed işlemi başlıyor...");
 
-    // Admin kullanıcısı oluştur
+    // Admin kullanıcısı oluştur (Osman Can - Gerçek hesap)
     const admin = await prisma.user.upsert({
-        where: { email: "admin@okul.edu.tr" },
+        where: { email: "oskitocan55@gmail.com" },
         update: {},
         create: {
-            email: "admin@okul.edu.tr",
-            fullName: "Sistem Yöneticisi",
+            email: "oskitocan55@gmail.com",
+            fullName: "Osman Can Çetiner",
             role: "ADMIN",
             isActive: true,
         },
