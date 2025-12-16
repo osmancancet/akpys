@@ -6,9 +6,9 @@ export async function GET() {
     const log = (msg: string) => { console.log(msg); logs.push(msg); };
 
     try {
-        log("1. Veritabanı Şema Onarımı ve Migration Başlıyor...");
+        log("1. Veritabanı Şema Onarımı (Gelişmiş) Başlıyor...");
 
-        // 1. UserRole Tipi Oluştur (Eğer yoksa)
+        // 1. UserRole Tipi Oluştur
         try {
             const typeExists: any[] = await prisma.$queryRaw`SELECT 1 FROM pg_type WHERE typname = 'UserRole'`;
 
@@ -17,17 +17,17 @@ export async function GET() {
                 await prisma.$executeRawUnsafe(`CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'MANAGER', 'HEAD_OF_DEPARTMENT', 'SECRETARY', 'LECTURER')`);
                 log("UserRole tipi oluşturuldu.");
             } else {
-                log("UserRole tipi zaten mevcut.");
+                log("UserRole tipi mevcut, eksik değerler ekleniyor.");
                 await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'HEAD_OF_DEPARTMENT'`).catch(() => { });
                 await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SECRETARY'`).catch(() => { });
             }
         } catch (e: any) {
-            log("Enum oluşturma hatası: " + e.message);
+            log("Enum işlem hatası (Önemsiz olabilir): " + e.message);
         }
 
         // 2. Tablo Kolonunu Dönüştür (Migration: Role -> UserRole)
         try {
-            // Önceki denemelerden geçersiz değerleri temizle (TEXT cast kullanarak!)
+            // A. Önce geçersiz değerleri temizle
             await prisma.$executeRawUnsafe(`
                 UPDATE "User" 
                 SET "role" = 'LECTURER' 
@@ -35,14 +35,21 @@ export async function GET() {
             `);
             log("Geçersiz rol değerleri temizlendi.");
 
-            // KRİTİK ADIM: Kolon tipini eski 'Role' veya 'text' tipinden 'UserRole' tipine çevir
-            // 'USING "role"::text::"UserRole"' ifadesi her türlü dönüşümü sağlar
+            // B. Default Constraint'i KALDIR (Kritik Adım!)
+            await prisma.$executeRawUnsafe(`ALTER TABLE "User" ALTER COLUMN "role" DROP DEFAULT`);
+            log("Eski Default Constraint kaldırıldı.");
+
+            // C. Kolon tipini değiştir
             await prisma.$executeRawUnsafe(`
                 ALTER TABLE "User" 
                 ALTER COLUMN "role" TYPE "UserRole" 
                 USING "role"::text::"UserRole"
             `);
-            log("Kolon tipi başarıyla UserRole olarak değiştirildi.");
+            log("Kolon tipi UserRole olarak değiştirildi.");
+
+            // D. Default Constraint'i TEKRAR EKLE
+            await prisma.$executeRawUnsafe(`ALTER TABLE "User" ALTER COLUMN "role" SET DEFAULT 'LECTURER'::"UserRole"`);
+            log("Yeni Default Constraint eklendi.");
 
         } catch (e: any) {
             log("Alter table (Migration) hatası: " + e.message);
@@ -75,7 +82,7 @@ export async function GET() {
             const test = await prisma.user.create({
                 data: {
                     email: `test_${Date.now()}@test.com`,
-                    fullName: "Migration Test User",
+                    fullName: "Migration Test User 2",
                     role: "LECTURER" as any,
                     isActive: false
                 }
