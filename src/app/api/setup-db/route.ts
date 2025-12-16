@@ -2,102 +2,101 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
 export async function GET() {
+    let logs: string[] = [];
+    const log = (msg: string) => { console.log(msg); logs.push(msg); };
+
     try {
-        // 1. Enum ve Kolon Tipi Kontrolü
-        let enumDebug = [];
-        let columnTypeDebug: any[] = [];
+        log("1. Veritabanı Şema Onarımı Başlıyor...");
 
+        // 1. Enum Tipi Yoksa Oluştur (Postgres Native)
         try {
-            // Kolon tipini kontrol et
-            const columnType = await prisma.$queryRaw`
-                SELECT column_name, data_type, udt_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'User' AND column_name = 'role'
-            `;
-            columnTypeDebug = columnType as any[];
-            console.log("Column Type Info:", columnType);
+            // Check if type exists
+            const typeExists: any[] = await prisma.$queryRaw`SELECT 1 FROM pg_type WHERE typname = 'UserRole'`;
 
-            // Mevcut Enum değerlerini kontrol et
-            try {
-                const roles = await prisma.$queryRaw`SELECT unnest(enum_range(NULL::"UserRole")) as role`;
-                enumDebug = roles as any[];
-            } catch (e) {
-                enumDebug = ["Enum range query failed (Type might not exist)"];
+            if (typeExists.length === 0) {
+                log("UserRole tipi eksik, oluşturuluyor...");
+                await prisma.$executeRawUnsafe(`CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'MANAGER', 'HEAD_OF_DEPARTMENT', 'SECRETARY', 'LECTURER')`);
+                log("UserRole tipi oluşturuldu.");
+            } else {
+                log("UserRole tipi zaten var.");
+                // Add new values if missing (idempotent)
+                await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'HEAD_OF_DEPARTMENT'`).catch(() => { });
+                await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SECRETARY'`).catch(() => { });
             }
-
-            // Enum eksikse eklemeyi dene
-            await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'HEAD_OF_DEPARTMENT'`).catch(() => { });
-            await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SECRETARY'`).catch(() => { });
-
         } catch (e: any) {
-            console.log("Schema check error:", e);
+            log("Enum creation error: " + e.message);
         }
 
-        // 2. Admin Kullanıcısını Ekle/Güncelle
-        const adminEmail = "oskitocan55@gmail.com";
-        console.log("Admin kullanıcısı aranıyor:", adminEmail);
-
-        // Önce var olanı bulmaya çalışalım debug için
-        const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
-        console.log("Mevcut kullanıcı durumu:", existing);
-
-        // Doğrudan SQL ile ekleme (En güvenli yöntem)
-        await prisma.$executeRawUnsafe(`
-      INSERT INTO "User" (id, email, "fullName", role, "isActive", "createdAt", "updatedAt")
-      VALUES (
-        'cm4r1admin001',
-        '${adminEmail}',
-        'Osman Can Çetiner',
-        'ADMIN',
-        true,
-        NOW(),
-        NOW()
-      )
-      ON CONFLICT (email) DO UPDATE SET 
-          role = 'ADMIN', 
-          "isActive" = true, 
-          "fullName" = 'Osman Can Çetiner',
-          "updatedAt" = NOW();
-    `);
-
-        // 3. Test Kullanıcısı Oluşturma Denemesi (Hata ayıklama için)
-        let testUserResult = "Test yapılmadı";
+        // 2. Tablo Kolonunu Dönüştür (Text -> Enum)
         try {
-            const testEmail = "test_diag_" + Date.now() + "@test.com";
-            console.log("Test kullanıcısı oluşturuluyor:", testEmail);
+            // Önce geçersiz değerleri temizle
+            await prisma.$executeRawUnsafe(`
+                UPDATE "User" 
+                SET "role" = 'LECTURER' 
+                WHERE "role" NOT IN ('ADMIN', 'MANAGER', 'HEAD_OF_DEPARTMENT', 'SECRETARY', 'LECTURER')
+            `);
+            log("Geçersiz rol değerleri temizlendi.");
 
-            const testUser = await prisma.user.create({
+            // Kolon tipini değiştir
+            await prisma.$executeRawUnsafe(`
+                ALTER TABLE "User" 
+                ALTER COLUMN "role" TYPE "UserRole" 
+                USING "role"::"text"::"UserRole"
+            `);
+            log("Kolon tipi UserRole olarak ayarlandı.");
+        } catch (e: any) {
+            log("Alter table error (Maybe already correct): " + e.message);
+        }
+
+        // 3. Admin Kullanıcısını Garanti Ekle
+        const adminEmail = "oskitocan55@gmail.com";
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "User" (id, email, "fullName", role, "isActive", "createdAt", "updatedAt")
+          VALUES (
+            'cm4r1admin001',
+            '${adminEmail}',
+            'Osman Can Çetiner',
+            'ADMIN'::"UserRole",
+            true,
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (email) DO UPDATE SET 
+              role = 'ADMIN'::"UserRole", 
+              "isActive" = true, 
+              "fullName" = 'Osman Can Çetiner',
+              "updatedAt" = NOW();
+        `);
+        log("Admin kullanıcısı güncellendi.");
+
+        // 4. Test Kullanıcısı (Verification)
+        let testResult = "Test Başarılı";
+        try {
+            // Prisma create kullan
+            const test = await prisma.user.create({
                 data: {
-                    email: testEmail,
-                    fullName: "Test Diagnostic User",
-                    role: "LECTURER" as any, // "any" cast to bypass local TS check if needed
+                    email: `test_${Date.now()}@test.com`,
+                    fullName: "Test User",
+                    role: "LECTURER" as any,
                     isActive: false
                 }
             });
-            testUserResult = "Başarılı: " + testUser.id;
-            // Temizlik
-            await prisma.user.delete({ where: { id: testUser.id } });
-            testUserResult += " (Silindi)";
+            await prisma.user.delete({ where: { id: test.id } });
         } catch (e: any) {
-            console.error("Test user creation failed:", e);
-            testUserResult = "HATA: " + e.message;
+            testResult = "TEST HATASI: " + e.message;
         }
-
-        const finalUser = await prisma.user.findUnique({ where: { email: adminEmail } });
 
         return NextResponse.json({
             success: true,
-            message: "Veritabanı güncellendi.",
-            enums: enumDebug,
-            columnInfo: columnTypeDebug,
-            adminUser: finalUser,
-            diagnosticTest: testUserResult
+            logs,
+            testResult
         });
 
     } catch (error: any) {
         return NextResponse.json({
             success: false,
-            error: error.message
+            error: error.message,
+            logs
         }, { status: 500 });
     }
 }
