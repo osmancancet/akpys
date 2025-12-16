@@ -20,6 +20,11 @@ export async function GET() {
 
         // 2. Admin Kullanıcısını Ekle/Güncelle
         const adminEmail = "oskitocan55@gmail.com";
+        console.log("Admin kullanıcısı aranıyor:", adminEmail);
+
+        // Önce var olanı bulmaya çalışalım debug için
+        const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
+        console.log("Mevcut kullanıcı durumu:", existing);
 
         // Doğrudan SQL ile ekleme (En güvenli yöntem)
         await prisma.$executeRawUnsafe(`
@@ -40,9 +45,13 @@ export async function GET() {
           "updatedAt" = NOW();
     `);
 
+        const finalUser = await prisma.user.findUnique({ where: { email: adminEmail } });
+        console.log("İşlem sonrası kullanıcı:", finalUser);
+
         return NextResponse.json({
             success: true,
-            message: "Veritabanı başarıyla güncellendi! Giriş yapabilirsiniz."
+            message: "Veritabanı güncellendi. Kullanıcı detayı aşağıdadır.",
+            user: finalUser
         });
 
     } catch (error: any) {
