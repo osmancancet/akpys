@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
 
 // GET - Tüm kullanıcıları listele (Sadece ADMIN)
 export async function GET() {
@@ -48,11 +49,17 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Bu e-posta zaten kayıtlı" }, { status: 400 });
         }
 
+        // Role kontrolü ve ataması
+        let userRole: UserRole = UserRole.LECTURER;
+        if (role && Object.values(UserRole).includes(role as UserRole)) {
+            userRole = role as UserRole;
+        }
+
         const user = await prisma.user.create({
             data: {
                 email,
                 fullName,
-                role: role || "LECTURER",
+                role: userRole,
                 isActive: true,
             },
         });

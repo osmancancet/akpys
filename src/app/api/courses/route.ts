@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
 
 // GET - Tüm dersleri listele
 export async function GET() {
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
         // ADMIN başka birini atayabilir, diğerleri sadece kendilerini
         let finalLecturerId = lecturerId || session.user.id;
 
-        if (lecturerId && lecturerId !== session.user.id && session.user.role !== "ADMIN") {
+        if (lecturerId && lecturerId !== session.user.id && session.user.role !== UserRole.ADMIN) {
             return NextResponse.json({ error: "Sadece kendi adınıza ders ekleyebilirsiniz" }, { status: 403 });
         }
 

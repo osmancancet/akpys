@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
 
 // GET - Raporları listele (filtreli)
 export async function GET(req: NextRequest) {
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
         const where: Record<string, unknown> = {};
 
         // ADMIN ve MANAGER tüm raporları görebilir, diğerleri sadece kendi derslerini
-        if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER") {
+        if (session.user.role !== UserRole.ADMIN && session.user.role !== UserRole.MANAGER) {
             const userCourses = await prisma.course.findMany({
                 where: { lecturerId: session.user.id },
                 select: { id: true },
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
 
         if (!course || course.lecturerId !== session.user.id) {
             // ADMIN hariç herkes sadece kendi dersine rapor yükleyebilir
-            if (session.user.role !== "ADMIN") {
+            if (session.user.role !== UserRole.ADMIN) {
                 return NextResponse.json({ error: "Bu ders için yetkiniz yok" }, { status: 403 });
             }
         }
