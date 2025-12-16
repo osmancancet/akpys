@@ -6,16 +6,17 @@ export default withAuth(
         const token = req.nextauth.token;
         const path = req.nextUrl.pathname;
 
-        // Admin sayfaları için ADMIN rolü gerekli
-        if (path.startsWith("/admin") && token?.role !== "ADMIN") {
+        // Admin sayfaları için ADMIN veya SECRETARY rolü gerekli
+        if (path.startsWith("/admin") && token?.role !== "ADMIN" && token?.role !== "SECRETARY") {
             return NextResponse.redirect(new URL("/unauthorized", req.url));
         }
 
-        // Manager sayfaları için ADMIN veya MANAGER rolü gerekli
+        // Manager sayfaları için ADMIN, MANAGER veya HEAD_OF_DEPARTMENT rolü gerekli
         if (
             path.startsWith("/manager") &&
             token?.role !== "ADMIN" &&
-            token?.role !== "MANAGER"
+            token?.role !== "MANAGER" &&
+            token?.role !== "HEAD_OF_DEPARTMENT"
         ) {
             return NextResponse.redirect(new URL("/unauthorized", req.url));
         }
