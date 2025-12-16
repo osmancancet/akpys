@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { UserRole } from "@prisma/client";
 
 // GET - Tüm kullanıcıları listele (Sadece ADMIN)
 export async function GET() {
     try {
         const session = await getServerSession(authOptions);
 
-        if (!session || session.user.role !== "ADMIN") {
+        if (!session || (session.user as any).role !== "ADMIN") {
             return NextResponse.json({ error: "Yetkisiz erişim" }, { status: 403 });
         }
 
@@ -29,12 +28,14 @@ export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
 
-        if (!session || session.user.role !== "ADMIN") {
+        if (!session || (session.user as any).role !== "ADMIN") {
             return NextResponse.json({ error: "Yetkisiz erişim" }, { status: 403 });
         }
 
         const body = await req.json();
         const { email, fullName, role } = body;
+
+        console.log("Kullanıcı ekleme isteği:", { email, fullName, role });
 
         if (!email || !fullName) {
             return NextResponse.json({ error: "E-posta ve ad soyad gerekli" }, { status: 400 });
@@ -49,24 +50,32 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Bu e-posta zaten kayıtlı" }, { status: 400 });
         }
 
-        // Role kontrolü ve ataması
-        let userRole: UserRole = UserRole.LECTURER;
-        if (role && Object.values(UserRole).includes(role as UserRole)) {
-            userRole = role as UserRole;
+        // Role kontrolü (Manuel string kontrolü)
+        const VALID_ROLES = ["ADMIN", "MANAGER", "LECTURER", "HEAD_OF_DEPARTMENT", "SECRETARY"];
+        let userRole = "LECTURER";
+
+        if (role && VALID_ROLES.includes(role)) {
+            userRole = role;
         }
+
+        console.log("Prisma create çağrılıyor...", { email, userRole });
 
         const user = await prisma.user.create({
             data: {
                 email,
                 fullName,
-                role: userRole,
+                role: userRole as any, // Enum type mismatch fix
                 isActive: true,
             },
         });
 
+        console.log("Kullanıcı oluşturuldu:", user.id);
+
         return NextResponse.json(user, { status: 201 });
-    } catch (error) {
-        console.error("Kullanıcı eklenemedi:", error);
-        return NextResponse.json({ error: "Sunucu hatası" }, { status: 500 });
+    } catch (error: any) {
+        console.error("Kullanıcı eklenemedi DETAYLI:", error);
+        return NextResponse.json({
+            error: "Sunucu hatası: " + (error.message || "Bilinmeyen hata")
+        }, { status: 500 });
     }
 }
