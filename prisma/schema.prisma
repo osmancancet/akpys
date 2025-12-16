@@ -15,7 +15,7 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   fullName  String
-  role      Role     @default(LECTURER)
+  role      UserRole     @default(LECTURER)
   isActive  Boolean  @default(true)
   image     String?
   courses   Course[]
