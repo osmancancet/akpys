@@ -3,19 +3,25 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
     try {
-        // 1. Enum Değerlerini Ekle
+        // 1. Enum Değerlerini Ekle ve Kontrol Et
+        let enumDebug = [];
         try {
-            await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE 'HEAD_OF_DEPARTMENT'`);
-            console.log("HEAD_OF_DEPARTMENT eklendi");
-        } catch (e) {
-            console.log("HEAD_OF_DEPARTMENT zaten var veya hata oluştu", e);
-        }
+            await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'HEAD_OF_DEPARTMENT'`).catch(e => console.log('Enum add error (expected if exists):', e.message));
+            await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SECRETARY'`).catch(e => console.log('Enum add error (expected if exists):', e.message));
 
-        try {
-            await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE 'SECRETARY'`);
-            console.log("SECRETARY eklendi");
-        } catch (e) {
-            console.log("SECRETARY zaten var veya hata oluştu", e);
+            // Mevcut Enum değerlerini kontrol et
+            const roles = await prisma.$queryRaw`SELECT unnest(enum_range(NULL::"UserRole")) as role`;
+            console.log("Database Enums:", roles);
+            enumDebug = roles as any[];
+        } catch (e: any) {
+            console.log("Enum check error:", e);
+            // Fallback for older Postgres without IF NOT EXISTS
+            try {
+                await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE 'HEAD_OF_DEPARTMENT'`);
+            } catch { }
+            try {
+                await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE 'SECRETARY'`);
+            } catch { }
         }
 
         // 2. Admin Kullanıcısını Ekle/Güncelle
@@ -51,7 +57,8 @@ export async function GET() {
         return NextResponse.json({
             success: true,
             message: "Veritabanı güncellendi. Kullanıcı detayı aşağıdadır.",
-            user: finalUser
+            user: finalUser,
+            enums: enumDebug
         });
 
     } catch (error: any) {
