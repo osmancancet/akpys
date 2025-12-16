@@ -77,6 +77,8 @@ export default function AdminUsersPage() {
     const roleLabels: Record<string, string> = {
         ADMIN: "Müdür",
         MANAGER: "Müdür Yrd.",
+        HEAD_OF_DEPARTMENT: "Bölüm Başkanı",
+        SECRETARY: "Y.Okul Sekreteri",
         LECTURER: "Öğr. Gör.",
     };
 
@@ -133,10 +135,12 @@ export default function AdminUsersPage() {
                                 <td className="p-4 text-slate-400">{user.email}</td>
                                 <td className="p-4">
                                     <span className={`px-2 py-1 text-xs rounded-full ${user.role === "ADMIN" ? "bg-purple-500/20 text-purple-400" :
-                                            user.role === "MANAGER" ? "bg-blue-500/20 text-blue-400" :
-                                                "bg-green-500/20 text-green-400"
+                                        user.role === "MANAGER" ? "bg-blue-500/20 text-blue-400" :
+                                            user.role === "HEAD_OF_DEPARTMENT" ? "bg-orange-500/20 text-orange-400" :
+                                                user.role === "SECRETARY" ? "bg-pink-500/20 text-pink-400" :
+                                                    "bg-green-500/20 text-green-400"
                                         }`}>
-                                        {roleLabels[user.role]}
+                                        {roleLabels[user.role] || user.role}
                                     </span>
                                 </td>
                                 <td className="p-4">
@@ -198,6 +202,8 @@ export default function AdminUsersPage() {
                                     className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white"
                                 >
                                     <option value="LECTURER">Öğretim Görevlisi</option>
+                                    <option value="HEAD_OF_DEPARTMENT">Bölüm Başkanı</option>
+                                    <option value="SECRETARY">Y.Okul Sekreteri</option>
                                     <option value="MANAGER">Müdür Yardımcısı</option>
                                     <option value="ADMIN">Müdür</option>
                                 </select>
